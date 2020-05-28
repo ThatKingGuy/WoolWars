@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="woolwars">
+    <output-path>$USER_HOME$/Desktop/test_server/plugins</output-path>
+    <root id="archive" name="woolwars.jar">
+      <element id="module-output" name="WoolWars" />
+    </root>
+  </artifact>
+</component>

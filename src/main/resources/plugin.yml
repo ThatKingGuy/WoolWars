@@ -1,0 +1,12 @@
+name: WoolWars
+version: 1.0.0
+main: com.gabe.woolwars.WoolWars
+api-version: 1.15
+authors: [gabe]
+description: My remake of a wool wars plugin!
+depend: [WorldEdit]
+commands:
+  ww:
+    description: Main Wool Wars command
+  aww:
+    description: Admin Wool Wars command

@@ -1,0 +1,19 @@
+kits:
+  Archer:
+    items:
+      - BOW:1
+      - ARROW:16
+    lore:
+      - '&7Start the game with a bow and 16'
+      - '&7arrows.'
+
+    icon: BOW:1
+  Speedy:
+    lore:
+    - '&7Zooooooooooooooooooooooooooooo'
+    - '&7ooooooooooooooom!'
+    effects:
+      - SPEED:3
+      - SLOW_FALLING:2
+      - JUMP:1
+    icon: FEATHER:1
