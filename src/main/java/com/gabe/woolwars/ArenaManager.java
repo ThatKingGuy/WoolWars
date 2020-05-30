@@ -41,7 +41,7 @@ public class ArenaManager {
         arenas.addAll(configSection.getKeys(false));
 
         for(String arenaname : arenas){
-            Arena arena  = new Arena(arenaname, (Location) config.get("Arenas." + arenaname + ".location"));
+            Arena arena  = new Arena(arenaname, (Location) config.get("Arenas." + arenaname + ".location"), plugin);
             arenaSet.add(arena);
         }
     }

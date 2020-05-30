@@ -43,8 +43,8 @@ public class ArenaResseter {
         Location location = WoolWars.getArenaManager().getArena(name).getLocation();
         for(int x = 0; x< 61; x++){
             for(int z = 0; z< 61; z++){
-                for(int y = 0; y< 100; y++) {
-                    Location check = new Location(location.getWorld(), x + location.getBlockX() - 31, location.getBlockY()+ y, z + location.getBlockZ() - 31);
+                for(int y = 0; y< 120; y++) {
+                    Location check = new Location(location.getWorld(), x + location.getBlockX() - 31, location.getBlockY()+ y-20, z + location.getBlockZ() - 31);
                     if (check.getBlock() != null) {
                         Block block = check.getBlock();
                         block.setType(Material.AIR);

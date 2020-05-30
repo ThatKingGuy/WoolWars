@@ -1,6 +1,7 @@
 package com.gabe.woolwars;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,6 +24,7 @@ public class KitManager {
     private WoolWars plugin;
     File customYml;
     FileConfiguration customConfig;
+
 
     private final Set<Kit> kits;
 
@@ -80,7 +82,21 @@ public class KitManager {
                 }
             }
 
-            Kit kit = new Kit(kitname, items, effects, icon, coloredLore);
+            //powers
+
+            List<KitPower> powers = new ArrayList<>();
+            for(String powstr : customConfig.getStringList("kits."+kitname+".powers")){
+                if(KitPower.getPower(powstr) != null){
+                    powers.add(KitPower.getPower(powstr));
+                    Bukkit.getLogger().info("[KITS] added power "+powstr);
+                }else{
+                    Bukkit.getConsoleSender().sendMessage(ChatColor.DARK_RED +"[WOOLWARS] Invalid power in config!");
+                }
+            }
+
+
+
+            Kit kit = new Kit(kitname, items, effects, icon, coloredLore, powers);
             kits.add(kit);
         }
 

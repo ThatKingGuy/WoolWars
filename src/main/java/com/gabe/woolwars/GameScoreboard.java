@@ -7,7 +7,14 @@ import org.bukkit.scoreboard.*;
 
 public class GameScoreboard {
 
+    private WoolWars plugin;
+
+    public GameScoreboard(WoolWars plugin){
+        this.plugin = plugin;
+    }
+
     public Scoreboard getScoreboard(Player player){
+        String servername = plugin.getConfig().getString("servername");
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         Scoreboard board = manager.getNewScoreboard();
         Arena arena = WoolWars.getArenaManager().getArena(player);
@@ -38,7 +45,7 @@ public class GameScoreboard {
             Score spacer1 = objective.getScore("             "); //Get a fake offline player
             spacer1.setScore(2);
 
-            Score ip = objective.getScore(WoolWars.color("&dmyserver.com")); //Get a fake offline player
+            Score ip = objective.getScore(WoolWars.color("&d"+servername)); //Get a fake offline player
             ip.setScore(1);
         }else{
             Score spacer = objective.getScore("             "); //Get a fake offline player
@@ -57,7 +64,7 @@ public class GameScoreboard {
             Score spacer1 = objective.getScore("             "); //Get a fake offline player
             spacer1.setScore(2);
 
-            Score ip = objective.getScore(WoolWars.color("&dmyserver.com")); //Get a fake offline player
+            Score ip = objective.getScore(WoolWars.color("&d"+servername)); //Get a fake offline player
             ip.setScore(1);
         }
 

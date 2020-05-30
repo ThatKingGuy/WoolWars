@@ -4,21 +4,24 @@ import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.material.Wool;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitScheduler;
+import org.bukkit.scoreboard.DisplaySlot;
 
 
+import java.io.IOException;
 import java.util.*;
 
 public class Arena {
@@ -33,6 +36,8 @@ public class Arena {
     public int roundtimer = 0;
     private int sandlayer;
     private int towertimer;
+    private WoolWars plugin;
+    GameScoreboard board;
 
     Map<UUID, ItemStack[]> items = new HashMap<UUID, ItemStack[]>();
     Map<UUID, ItemStack[]> armor = new HashMap<UUID, ItemStack[]>();
@@ -40,13 +45,15 @@ public class Arena {
 
     public GameState state = GameState.WAITING;
 
-    public Arena(String name, Location location) {
+    public Arena(String name, Location location, WoolWars plugin) {
         this.name = name;
         this.location = location;
         this.players = new HashSet<>();
         this.spectators = new HashSet<>();
         this.spawns = new HashSet<>();
         this.sandlayer = location.getBlockY()-1;
+        this.board = new GameScoreboard(plugin);
+        this.plugin = plugin;
         for(int x = 0; x< 61; x++){
             for(int z = 0; z< 61; z++){
                 Location check = new Location(location.getWorld(), x+location.getBlockX()-31, location.getBlockY(), z+location.getBlockZ()-31);
@@ -108,9 +115,81 @@ public class Arena {
         }
     }
 
-    public int getSandlayer(){
+    public int getSandlayer() {
         return sandlayer - getLocation().getBlockY();
-     }
+    }
+
+    public void killPlayer(PlayerDeathEvent event){
+        if(state == GameState.INGAME) {
+            Player player = event.getEntity();
+            this.players.remove(player);
+            this.spectators.add(player);
+
+            player.setAllowFlight(true);
+            player.setFlying(true);
+
+            for(Player p : Bukkit.getOnlinePlayers()){
+                p.hidePlayer(player);
+            }
+
+            for (Player p : getPlayers()) {
+                p.sendMessage(WoolWars.format("&d" + event.getDeathMessage()));
+            }
+
+            for (Player p : getSpectators()) {
+                p.sendMessage(WoolWars.format("&d" + event.getDeathMessage()));
+            }
+
+            player.teleport(getLocation().add(0, getSandlayer() + 5, 0));
+            player.getInventory().clear();
+            //openTeleportMenu(player);
+            checkPlayers();
+        }
+
+    }
+
+    public void checkPlayers(){
+        if(state==GameState.INGAME){
+            if(getPlayers().size() <= 1) {
+                Player winner = new ArrayList<Player>(getPlayers()).get(0);
+                for (Player player : getSpectators()) {
+                    player.sendMessage(WoolWars.color("&7-----------------------------"));
+                    player.sendMessage(WoolWars.color(""));
+                    player.sendMessage(WoolWars.color("&5&l" + winner.getDisplayName() + " &dhas won the game!"));
+                    player.sendMessage(WoolWars.color(""));
+                    player.sendMessage(WoolWars.color("&7-----------------------------"));
+                }
+
+                for (Player player : getPlayers()) {
+                    player.sendMessage(WoolWars.color("&7-----------------------------"));
+                    player.sendMessage(WoolWars.color(""));
+                    player.sendMessage(WoolWars.color("&5&lYou &dhave won the game!"));
+                    player.sendMessage(WoolWars.color(""));
+                    player.sendMessage(WoolWars.color("&7-----------------------------"));
+                }
+
+                Bukkit.getScheduler().cancelTask(j);
+                Bukkit.getScheduler().cancelTask(g);
+                state = GameState.ENDING;
+
+                //teleport players and restore inventorys
+                startCelebration(plugin, winner);
+
+
+
+                state = GameState.WAITING;
+            }
+        }
+    }
+
+    public void reset(){
+        ArenaResseter arenaResseter = new ArenaResseter(plugin);
+        try {
+            arenaResseter.reset(getName());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     public Set<Location> getSpawns(){
         return Collections.unmodifiableSet(spawns);
@@ -128,6 +207,67 @@ public class Arena {
         return Collections.unmodifiableSet(players);
     }
 
+    public Set<Player> getSpectators(){
+        return Collections.unmodifiableSet(spectators);
+    }
+
+    public void sendAllToLobby(){
+        for (Player player : getSpectators()) {
+            spectators.remove(player);
+            player.getInventory().clear();
+            restoreInventory(player);
+            player.setHealth(20);
+            player.setFoodLevel(20);
+            player.setAllowFlight(false);
+            player.setFlying(false);
+            for (PotionEffect effect : player.getActivePotionEffects())
+                player.removePotionEffect(effect.getType());
+            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+            player.teleport(WoolWars.getArenaManager().getLobby());
+        }
+        for (Player player : getPlayers()) {
+            players.remove(player);
+            player.getInventory().clear();
+            player.setHealth(20);
+            player.setFoodLevel(20);
+            player.setAllowFlight(false);
+            player.setFlying(false);
+            restoreInventory(player);
+            for (PotionEffect effect : player.getActivePotionEffects())
+                player.removePotionEffect(effect.getType());
+            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+            player.teleport(WoolWars.getArenaManager().getLobby());
+        }
+    }
+
+    public void openTeleportMenu(Player player){
+        Inventory inv = Bukkit.createInventory(null,27, WoolWars.color("&5&lWoolWars &8&l- &d&lTeleport Menu"));
+
+        for(Player p : getPlayers()) {
+
+            ItemStack playerskull = new ItemStack(Material.PLAYER_HEAD,1, (short) SkullType.PLAYER.ordinal());
+
+            SkullMeta meta = (SkullMeta) playerskull.getItemMeta();
+
+            meta.setOwner(player.getName());
+            meta.setDisplayName(ChatColor.DARK_PURPLE + player.getDisplayName());
+
+            playerskull.setItemMeta(meta);
+
+            List<String> lore = new ArrayList<>();
+            lore.add("");
+            lore.add(WoolWars.color("&aClick to teleport to player."));
+            meta.setLore(lore);
+
+
+            playerskull.setItemMeta(meta);
+            inv.addItem(playerskull);
+        }
+
+        //show the player the gui
+        player.openInventory(inv);
+
+    }
 
     public void openKitMenu(Player player){
         Inventory inv = Bukkit.createInventory(null,27, WoolWars.color("&5&lWoolWars &8&l- &d&lKits"));
@@ -161,6 +301,8 @@ public class Arena {
         if(players.size() < 24) {
             if(state.canJoin()) {
                 this.players.add(player);
+                player.setHealth(20);
+                player.setFoodLevel(20);
                 storeAndClearInventory(player);
 
                 /////items
@@ -232,7 +374,7 @@ public class Arena {
 
     public void updateScoreboard(){
         for(Player player: getPlayers()){
-            GameScoreboard board = new GameScoreboard();
+
             player.setScoreboard(board.getScoreboard(player));
         }
     }
@@ -243,6 +385,8 @@ public class Arena {
             player.getInventory().clear();
             PotionEffect effect = new PotionEffect(PotionEffectType.JUMP, 200, -100);
             player.addPotionEffect(effect);
+            PotionEffect invincibility = new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 15*20, 4);
+            player.addPotionEffect(invincibility);
         }
 
         BukkitScheduler scheduler = plugin.getServer().getScheduler();
@@ -327,11 +471,9 @@ public class Arena {
 
 
                         for (Player player : getPlayers()) {
-                            player.teleport(sp.get(0));
+                            player.teleport(sp.get(0).add(0.5,1,0.5));
                             sp.remove(sp.get(0));
                             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HARP, 1,1);
-
-
                         }
 
                         for(int x = 0; x< 61; x++){
@@ -360,7 +502,7 @@ public class Arena {
                         Bukkit.getScheduler().cancelTask(m);
                         startRoundTimer(plugin);
                         startCountDown(plugin);
-
+                        playertimer = -1;
                     }
                 }
 
@@ -457,6 +599,54 @@ public class Arena {
         }
     }
 
+    public void spawnFireworks(Location location, int amount){
+        Location loc = location;
+        Firework fw = (Firework) loc.getWorld().spawnEntity(loc, EntityType.FIREWORK);
+        FireworkMeta fwm = fw.getFireworkMeta();
 
+        fwm.setPower(2);
+        Random rand = new Random();
+        int randomNum = rand.nextInt((5 - 1) + 1) + 1;
+
+        if(randomNum == 1) {
+            fwm.addEffect(FireworkEffect.builder().withColor(Color.LIME).flicker(true).build());
+        }else if(randomNum == 2) {
+            fwm.addEffect(FireworkEffect.builder().withColor(Color.RED).flicker(true).build());
+        }else if(randomNum == 3) {
+            fwm.addEffect(FireworkEffect.builder().withColor(Color.BLUE).flicker(true).build());
+        }else if(randomNum == 4) {
+            fwm.addEffect(FireworkEffect.builder().withColor(Color.ORANGE).flicker(true).build());
+        }else if(randomNum == 5) {
+            fwm.addEffect(FireworkEffect.builder().withColor(Color.YELLOW).flicker(true).build());
+        }
+
+        fw.setFireworkMeta(fwm);
+        fw.detonate();
+
+        for(int i = 0;i<amount; i++){
+            Firework fw2 = (Firework) loc.getWorld().spawnEntity(loc, EntityType.FIREWORK);
+            fw2.setFireworkMeta(fwm);
+        }
+    }
+
+    int h = 0;
+    int timeUntilTeleport = 0;
+    public void startCelebration(Plugin plugin, Player winner){
+        timeUntilTeleport = 5;
+        BukkitScheduler scheduler = plugin.getServer().getScheduler();
+        h = scheduler.scheduleSyncRepeatingTask(plugin, new Runnable() {
+            @Override
+            public void run() {
+                if(timeUntilTeleport > 0){
+                    timeUntilTeleport --;
+                    spawnFireworks(winner.getLocation(), 2);
+                }else{
+                    Bukkit.getScheduler().cancelTask(h);
+                    sendAllToLobby();
+                    reset();
+                }
+            }
+        }, 0L, 1 * 20L);
+    }
 
 }

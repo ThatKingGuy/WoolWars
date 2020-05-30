@@ -1,6 +1,7 @@
 package com.gabe.woolwars;
 
 import org.bukkit.*;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
@@ -11,8 +12,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.*;
@@ -24,6 +24,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,7 +63,11 @@ public final class WoolWars extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
 
-        // Plugin startup logic
+        if(!(new File(this.getDataFolder() + File.separator + "config.yml").exists())){
+            getConfig().set("servername", "myserver.com");
+            saveConfig();
+        }
+
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("aww").setTabCompleter(new AdminTabCompletions());
         manager = new GhostManager(this);
@@ -89,29 +94,33 @@ public final class WoolWars extends JavaPlugin implements Listener {
                 if(args.length == 0){
                     //create arena gui
                     Inventory inv = Bukkit.createInventory(null,27, color("&5&lWoolWars &8&l- &d&lArenas"));
-                    List<Material> iconmats = new ArrayList<>();
-                    iconmats.add(Material.RED_WOOL);
-                    iconmats.add(Material.ORANGE_WOOL);
-                    iconmats.add(Material.YELLOW_WOOL);
-                    iconmats.add(Material.LIME_WOOL);
-                    iconmats.add(Material.LIGHT_BLUE_WOOL);
-                    iconmats.add(Material.WHITE_WOOL);
-                    iconmats.add(Material.CYAN_WOOL);
-                    iconmats.add(Material.MAGENTA_WOOL);
-
                     for(Arena a : getArenaManager().getArenaList()) {
 
-                        //pick a random wool color for icon
-                        Random random = new Random();
-                        int material = random.nextInt(iconmats.size());
-                        ItemStack icon = new ItemStack(iconmats.get(material),1);
+                        Material state = Material.GLASS;
+                        String stateText = "&3Resetting";
+
+                        if(a.state == GameState.INGAME){
+                            stateText = "&dIn Progress";
+                            state = Material.RED_CONCRETE;
+                        } else if(a.state == GameState.STARTING){
+                            stateText = "&dStarting";
+                            state = Material.YELLOW_CONCRETE;
+
+                        } else if(a.state == GameState.WAITING){
+                            stateText = "&dWaiting for players";
+                            state = Material.GREEN_CONCRETE;
+                        }
+                        ItemStack icon = new ItemStack(state,1);
 
                         ItemMeta im = icon.getItemMeta();
                         im.setDisplayName(color("&5"+a.getName()));
 
                         //set lore
                         List<String> lore = new ArrayList<String>();
-                        lore.add(color("&7Click to join arena."));
+                        lore.add(color("&8Players: ("+a.getPlayers().size()+"/"+a.getSpawns().size()+")"));
+                        lore.add(color(stateText));
+                        lore.add("");
+                        lore.add(color("&aClick to join arena."));
                         im.setLore(lore);
 
                         icon.setItemMeta(im);
@@ -131,7 +140,7 @@ public final class WoolWars extends JavaPlugin implements Listener {
                         player.sendMessage(format("You are not in an arena!"));
                     }
                 }
-                else{
+                else if(args[0].equalsIgnoreCase("help")){
                     if(args[0].equalsIgnoreCase("help")){
                         player.sendMessage(color("                    &5&lWoolWars &8- &7v"+getDescription().getVersion()));
                         player.sendMessage(color("                              &7Help"));
@@ -141,6 +150,14 @@ public final class WoolWars extends JavaPlugin implements Listener {
                         player.sendMessage(color("&8/&dww join <arena> &8- &7Join an arena."));
                         player.sendMessage(color("&8/&dww leave/quit &8- &7Leave the arena you're in."));
                     }
+                }else{
+                    player.sendMessage(color("                    &5&lWoolWars &8- &7v"+getDescription().getVersion()));
+                    player.sendMessage(color("                              &7Help"));
+                    player.sendMessage("");
+                    player.sendMessage(color("&8/&dww &8- &7Opens the arenas gui."));
+                    player.sendMessage(color("&8/&dww help &8- &7Shows this."));
+                    player.sendMessage(color("&8/&dww join <arena> &8- &7Join an arena."));
+                    player.sendMessage(color("&8/&dww leave/quit &8- &7Leave the arena you're in."));
                 }
             }else if(label.equalsIgnoreCase("aww")){
                 if(args.length == 0){
@@ -170,7 +187,7 @@ public final class WoolWars extends JavaPlugin implements Listener {
                                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HARP, 1, 1);
                                 title.send(player, color("&dYou Created An arena!"), color("&7Name: &l"+args[1]), 0,2,0);
                                 player.sendMessage(format("&aCreated arena \""+args[1]+"\"."));
-                                getArenaManager().addArena(new Arena(args[1],player.getLocation()));
+                                getArenaManager().addArena(new Arena(args[1],player.getLocation(), this));
                                 getArenaManager().serialise();
                             }else{
                                 player.sendMessage(format("&cThere is already an arena with that name"));
@@ -294,7 +311,7 @@ public final class WoolWars extends JavaPlugin implements Listener {
                         if (getArenaManager().getArena(player) != null) {
                             if (kit != null) {
                                 getArenaManager().getArena(player).setKit(player, kit);
-                                player.sendMessage(format("&aSelected kit &l" + kit.getName()));
+                                player.sendMessage(format("&aSelected kit &d&l" + kit.getName()));
                                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1 ,1);
                                 player.closeInventory();
                             }
@@ -302,9 +319,32 @@ public final class WoolWars extends JavaPlugin implements Listener {
 
                     }
                 }
+            }if (event.getView().getTitle().equals(color("&5&lWoolWars &8&l- &d&lTeleport Menu"))) {
+                ItemStack item = event.getCurrentItem();
+                event.setCancelled(true);
+                if (item != null) {
+                    if (item.getType() != null) {
+                        if (getArenaManager().getArena(player) != null) {
+                            Arena arena = getArenaManager().getArena(player);
+                            if (Bukkit.getPlayer(ChatColor.stripColor(item.getItemMeta().getDisplayName())) != null) {
+                                Player spec = Bukkit.getPlayer(ChatColor.stripColor(item.getItemMeta().getDisplayName()));
+                                if (arena.getPlayers().contains(spec)) {
+                                    player.sendMessage(format("&aTeleported to player &d&l" + spec.getDisplayName()));
+                                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
+                                    player.teleport(spec);
+                                    player.closeInventory();
+                                }else {
+                                    player.sendMessage(format("&7This player has died."));
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+
+
     @EventHandler
     public void onClickSlot(InventoryClickEvent e) {
         Arena arena = getArenaManager().getArena((Player) e.getWhoClicked());
@@ -349,6 +389,20 @@ public final class WoolWars extends JavaPlugin implements Listener {
             Arena arena = getArenaManager().getArena(player);
             if(arena.state == GameState.STARTING){
                 player.setWalkSpeed(0);
+                if (event.getFrom().getBlockX() != event.getTo().getBlockX() || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
+                    event.setCancelled(true);
+                }
+
+            }
+
+
+            List<ItemStack> drops = new ArrayList<>();
+            for(ItemStack item : player.getInventory().getContents()){
+                drops.add(item);
+            }
+            if(player.getLocation().subtract(0,0.2,0).getBlock().getType() == Material.SANDSTONE){
+                PlayerDeathEvent e = new PlayerDeathEvent(player, drops, 0,0,player.getDisplayName()+" has been vaporized by the sandstone.");
+                arena.killPlayer(e);
             }
         }
     }
@@ -359,14 +413,15 @@ public final class WoolWars extends JavaPlugin implements Listener {
             return;
         }
         Player player = (Player) e.getEntity();
-        if (e.getCause() == EntityDamageEvent.DamageCause.FALL) {
-            if(getArenaManager().getArena(player) != null){
-                Arena arena = getArenaManager().getArena(player);
-                if(arena.state != GameState.INGAME){
-                    e.setCancelled(true);
-                }
+
+        if(getArenaManager().getArena(player) != null){
+            Arena arena = getArenaManager().getArena(player);
+
+            if(arena.state != GameState.INGAME){
+                e.setCancelled(true);
             }
         }
+
 
     }
 
@@ -384,6 +439,51 @@ public final class WoolWars extends JavaPlugin implements Listener {
             }
         }
     }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void PlayerDamageReceive(EntityDamageByEntityEvent e) {
+        if(e.getEntity() instanceof Player) {
+            Player damaged = (Player) e.getEntity();
+
+            if(e.getDamager() instanceof Player) {
+                Player damager = (Player) e.getDamager();
+                    if((damaged.getHealth()-e.getDamage()) <= 0) {
+                        if(getArenaManager().getArena(damaged) != null) {
+                            Arena arena = getArenaManager().getArena(damaged);
+                            //Killed
+                            e.setCancelled(true);
+                            List<ItemStack> drops = new ArrayList<>();
+                            arena.killPlayer(new PlayerDeathEvent(damager, drops, 0,0,damaged.getDisplayName() + " was slain by " + damager.getDisplayName()+"."));
+                            damaged.setHealth(20);
+                        }
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerPortal(PlayerTeleportEvent e) {
+        if (e.getCause() == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL) {
+            e.setCancelled(true);
+            List<Arena> arenas = new ArrayList<>(getArenaManager().getArenaList());
+            for(Arena arena : arenas){
+                if(!arena.state.canJoin()){
+                    arenas.remove(arena);
+                }
+            }
+            arenas.get(0).addPlayer(e.getPlayer(), this);
+
+        }
+    }
+
+    /*@EventHandler
+    public void onDeath(PlayerDeathEvent event){
+        Player player = event.getEntity();
+        if(getArenaManager().getArena(player) != null){
+            Arena arena = getArenaManager().getArena(player);
+            arena.killPlayer(event);
+        }
+    } */
 
 
     @EventHandler
@@ -413,8 +513,20 @@ public final class WoolWars extends JavaPlugin implements Listener {
             if(getArenaManager().getArena(player).state != GameState.INGAME){
                 event.setCancelled(true);
             }
+            if(getArenaManager().getArena(player).getSpectators().contains(player)){
+                event.setCancelled(true);
+            }
         }
     }
 
+    @EventHandler
+    public void onEntityExplode(EntityExplodeEvent event) {
+        if (event.isCancelled()) return;
 
+        List<Block> blockListCopy = new ArrayList<>();
+        blockListCopy.addAll(event.blockList());
+        for (Block block : blockListCopy) {
+            if (block.getType() == Material.SANDSTONE) event.blockList().remove(block);
+        }
+    }
 }
